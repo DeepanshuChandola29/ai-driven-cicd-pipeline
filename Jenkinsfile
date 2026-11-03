@@ -8,11 +8,22 @@ pipeline {
       steps { checkout scm }
     }
     stage('Install dependencies') {
-      steps { sh 'python3 -m pip install -r requirements.txt' }
+    steps {
+        sh '''
+            python3 -m venv .venv
+            .venv/bin/python -m pip install --upgrade pip
+            .venv/bin/pip install -r requirements.txt
+        '''
     }
-    stage('Automated tests') {
-      steps { sh 'python3 -m pytest -q' }
+}
+
+stage('Automated tests') {
+    steps {
+        sh '''
+            .venv/bin/python -m pytest -q
+        '''
     }
+}
     stage('Build Docker image') {
       steps { sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .' }
     }
