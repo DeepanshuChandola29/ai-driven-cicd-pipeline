@@ -57,18 +57,85 @@ if result['risk_score'] >= 70:
         '''
     }
 }
-    stage('Deploy') {
+    
+stage('Deploy') {
     steps {
         sh '''
+            NEW_IMAGE="releasepilot-demo:${BUILD_NUMBER}"
+
+            # Save the currently running version
+            PREVIOUS_IMAGE=$(docker inspect --format='{{.Config.Image}}' releasepilot-app 2>/dev/null || true)
+
+            echo "Previous image: ${PREVIOUS_IMAGE}"
+            echo "Deploying new image: ${NEW_IMAGE}"
+
+            # Stop the old container
             docker rm -f releasepilot-app || true
 
-            docker run -d \
+            # Start the new version
+            if ! docker run -d \
                 --name releasepilot-app \
                 --restart unless-stopped \
                 -p 5000:5000 \
-                releasepilot-demo:${BUILD_NUMBER}
+                "$NEW_IMAGE"; then
+
+                echo "New deployment failed!"
+
+                if [ -n "$PREVIOUS_IMAGE" ]; then
+                    echo "Restoring previous version..."
+                    docker run -d \
+                        --name releasepilot-app \
+                        --restart unless-stopped \
+                        -p 5000:5000 \
+                        "$PREVIOUS_IMAGE"
+                fi
+
+                exit 1
+            fi
+
+            # Check application health (up to 10 attempts)
+            HEALTHY=0
+
+            for i in $(seq 1 10); do
+                echo "Health check attempt $i of 10..."
+
+                if docker exec releasepilot-app python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5)" 2>/dev/null; then
+                    HEALTHY=1
+                    break
+                fi
+
+                sleep 3
+            done
+
+            # Rollback if health check fails
+            if [ "$HEALTHY" -eq 0 ]; then
+                echo "Health check failed! Starting rollback..."
+
+                docker logs --tail 30 releasepilot-app || true
+                docker rm -f releasepilot-app || true
+
+                if [ -n "$PREVIOUS_IMAGE" ]; then
+                    echo "Restoring previous image: $PREVIOUS_IMAGE"
+
+                    docker run -d \
+                        --name releasepilot-app \
+                        --restart unless-stopped \
+                        -p 5000:5000 \
+                        "$PREVIOUS_IMAGE"
+
+                    echo "Previous version restored."
+                else
+                    echo "No previous version available!"
+                fi
+
+                exit 1
+            fi
+
+            echo "Deployment successful! Application is healthy."
         '''
     }
+}
+
 }
   }
   post {
