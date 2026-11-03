@@ -28,12 +28,35 @@ stage('Automated tests') {
       steps { sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .' }
     }
     stage('AI risk gate') {
-      steps {
-        // In the complete demo, call the Flask /api/pipeline/run endpoint here
-        // with Jenkins metrics and stop the release when predicted risk >= 70.
-        echo 'Connect Jenkins metrics to the ReleasePilot risk API for live gating.'
-      }
+    steps {
+        sh '''
+            .venv/bin/python -c "
+from ml.predict import predict_risk
+
+metrics = {
+    'changed_files': 10,
+    'test_failures': 0,
+    'previous_failures': 0,
+    'build_duration': 75,
+    'cpu_usage': 45,
+    'coverage': 85
+}
+
+result = predict_risk(metrics)
+
+print('AI RELEASE RISK ANALYSIS')
+print('Risk Score:', result['risk_score'], '%')
+print('Risk Level:', result['risk_level'])
+
+for reason in result['reasons']:
+    print('-', reason)
+
+if result['risk_score'] >= 70:
+    raise SystemExit('RELEASE BLOCKED: High risk detected')
+"
+        '''
     }
+}
     stage('Deploy') {
       steps { echo 'Demo deployment stage. Add your target environment credentials and deploy command.' }
     }
