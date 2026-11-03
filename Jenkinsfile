@@ -58,8 +58,18 @@ if result['risk_score'] >= 70:
     }
 }
     stage('Deploy') {
-      steps { echo 'Demo deployment stage. Add your target environment credentials and deploy command.' }
+    steps {
+        sh '''
+            docker rm -f releasepilot-app || true
+
+            docker run -d \
+                --name releasepilot-app \
+                --restart unless-stopped \
+                -p 5000:5000 \
+                releasepilot-demo:${BUILD_NUMBER}
+        '''
     }
+}
   }
   post {
     failure { echo 'Pipeline failed. Trigger rollback to the previous stable image in your target environment.' }
