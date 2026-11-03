@@ -1,36 +1,50 @@
-pipeline {
-  agent any
-  environment {
-    IMAGE_NAME = 'releasepilot-demo'
-  }
-  stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
-    stage('Install dependencies') {
-    steps {
-        sh '''
-            python3 -m venv .venv
-            .venv/bin/python -m pip install --upgrade pip
-            .venv/bin/pip install -r requirements.txt
-        '''
-    }
-}
 
-stage('Automated tests') {
-    steps {
-        sh '''
-            .venv/bin/python -m pytest -q
-        '''
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'releasepilot-demo'
+        CONTAINER_NAME = 'releasepilot-app'
     }
-}
-    stage('Build Docker image') {
-      steps { sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .' }
-    }
-    stage('AI risk gate') {
-    steps {
-        sh '''
-            .venv/bin/python -c "
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                sh '''
+                    python3 -m venv .venv
+                    .venv/bin/python -m pip install --upgrade pip
+                    .venv/bin/pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Automated tests') {
+            steps {
+                sh '''
+                    .venv/bin/python -m pytest -q
+                '''
+            }
+        }
+
+        stage('Build Docker image') {
+            steps {
+                sh '''
+                    docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                '''
+            }
+        }
+
+        stage('AI risk gate') {
+            steps {
+                sh '''
+                    .venv/bin/python -c "
 from ml.predict import predict_risk
 
 metrics = {
@@ -54,92 +68,110 @@ for reason in result['reasons']:
 if result['risk_score'] >= 70:
     raise SystemExit('RELEASE BLOCKED: High risk detected')
 "
-        '''
-    }
-}
-    
-stage('Deploy') {
-    steps {
-        sh '''
-            NEW_IMAGE="releasepilot-demo:${BUILD_NUMBER}"
+                '''
+            }
+        }
 
-            # Save the currently running version
-            PREVIOUS_IMAGE=$(docker inspect --format='{{.Config.Image}}' releasepilot-app 2>/dev/null || true)
+        stage('Deploy') {
+            steps {
+                sh '''
+                    NEW_IMAGE="${IMAGE_NAME}:${BUILD_NUMBER}"
 
-            echo "Previous image: ${PREVIOUS_IMAGE}"
-            echo "Deploying new image: ${NEW_IMAGE}"
+                    # Get currently running image
+                    PREVIOUS_IMAGE=$(docker inspect \
+                        --format='{{.Config.Image}}' \
+                        ${CONTAINER_NAME} 2>/dev/null || true)
 
-            # Stop the old container
-            docker rm -f releasepilot-app || true
+                    echo "Previous image: ${PREVIOUS_IMAGE}"
+                    echo "New image: ${NEW_IMAGE}"
 
-            # Start the new version
-            if ! docker run -d \
-                --name releasepilot-app \
-                --restart unless-stopped \
-                -p 5000:5000 \
-                "$NEW_IMAGE"; then
+                    # Remove old container
+                    docker rm -f ${CONTAINER_NAME} || true
 
-                echo "New deployment failed!"
-
-                if [ -n "$PREVIOUS_IMAGE" ]; then
-                    echo "Restoring previous version..."
-                    docker run -d \
-                        --name releasepilot-app \
+                    # Deploy new container
+                    if ! docker run -d \
+                        --name ${CONTAINER_NAME} \
                         --restart unless-stopped \
                         -p 5000:5000 \
-                        "$PREVIOUS_IMAGE"
-                fi
+                        "$NEW_IMAGE"; then
 
-                exit 1
-            fi
+                        echo "Deployment failed!"
 
-            # Check application health (up to 10 attempts)
-            HEALTHY=0
+                        if [ -n "$PREVIOUS_IMAGE" ]; then
+                            echo "Restoring previous image..."
 
-            for i in $(seq 1 10); do
-                echo "Health check attempt $i of 10..."
+                            docker run -d \
+                                --name ${CONTAINER_NAME} \
+                                --restart unless-stopped \
+                                -p 5000:5000 \
+                                "$PREVIOUS_IMAGE"
+                        fi
 
-                if docker exec releasepilot-app python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5)" 2>/dev/null; then
-                    HEALTHY=1
-                    break
-                fi
+                        exit 1
+                    fi
 
-                sleep 3
-            done
+                    # Application health check
+                    HEALTHY=0
 
-            # Rollback if health check fails
-            if [ "$HEALTHY" -eq 0 ]; then
-                echo "Health check failed! Starting rollback..."
+                    for i in $(seq 1 10); do
+                        echo "Health check attempt $i of 10"
 
-                docker logs --tail 30 releasepilot-app || true
-                docker rm -f releasepilot-app || true
+                        if docker exec ${CONTAINER_NAME} \
+                            python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5)" \
+                            2>/dev/null; then
 
-                if [ -n "$PREVIOUS_IMAGE" ]; then
-                    echo "Restoring previous image: $PREVIOUS_IMAGE"
+                            HEALTHY=1
+                            break
+                        fi
 
-                    docker run -d \
-                        --name releasepilot-app \
-                        --restart unless-stopped \
-                        -p 5000:5000 \
-                        "$PREVIOUS_IMAGE"
+                        sleep 3
+                    done
 
-                    echo "Previous version restored."
-                else
-                    echo "No previous version available!"
-                fi
+                    # Rollback if health check fails
+                    if [ "$HEALTHY" -eq 0 ]; then
 
-                exit 1
-            fi
+                        echo "Health check failed!"
 
-            echo "Deployment successful! Application is healthy."
-        '''
+                        docker logs --tail 30 ${CONTAINER_NAME} || true
+                        docker rm -f ${CONTAINER_NAME} || true
+
+                        if [ -n "$PREVIOUS_IMAGE" ]; then
+
+                            echo "Rolling back to: $PREVIOUS_IMAGE"
+
+                            docker run -d \
+                                --name ${CONTAINER_NAME} \
+                                --restart unless-stopped \
+                                -p 5000:5000 \
+                                "$PREVIOUS_IMAGE"
+
+                            echo "Previous version restored."
+
+                        else
+                            echo "No previous version available!"
+                        fi
+
+                        exit 1
+                    fi
+
+                    echo "Deployment successful!"
+                    echo "Application is healthy."
+                '''
+            }
+        }
     }
-}
 
-}
-  }
-  post {
-    failure { echo 'Pipeline failed. Trigger rollback to the previous stable image in your target environment.' }
-    always { echo 'Pipeline execution finished.' }
-  }
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the console output for details.'
+        }
+
+        always {
+            echo 'Pipeline execution finished.'
+        }
+    }
 }
