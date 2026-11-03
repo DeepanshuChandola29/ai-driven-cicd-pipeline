@@ -1,0 +1,10 @@
+services:
+  releasepilot:
+    build: .
+    container_name: releasepilot
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./deployments:/app/deployments
+    restart: unless-stopped

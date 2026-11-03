@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+ml/*.joblib
+data/state.json
+deployments/*
+!deployments/.gitkeep
+.env

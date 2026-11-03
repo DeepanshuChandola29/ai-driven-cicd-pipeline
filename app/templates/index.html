@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReleasePilot • AI CI/CD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">R</div><div><b>ReleasePilot</b><small>INTELLIGENT DELIVERY</small></div></div>
+    <div class="nav-label">WORKSPACE</div>
+    <a class="nav active" href="#"><span>◫</span> Overview</a>
+    <a class="nav" href="#pipeline"><span>⌘</span> Pipeline runner</a>
+    <a class="nav" href="#history"><span>▤</span> Release history</a>
+    <div class="side-bottom"><div class="live-dot"></div><div><b>Systems operational</b><small>Local demo environment</small></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><div class="eyebrow">DEVOPS CONTROL CENTER / OVERVIEW</div><h1>Release intelligence</h1><p class="sub">Predict risk. Ship with confidence. Recover automatically.</p></div><div class="top-actions"><span class="env"><i></i> DEMO ENVIRONMENT</span><div class="avatar">DC</div></div></header>
+    <section class="hero">
+      <div><div class="hero-kicker"><span class="spark">✦</span> AI-POWERED DELIVERY</div><h2>Your next release,<br><em>under control.</em></h2><p>Run a deployment simulation and let the risk engine inspect your pipeline signals before release.</p><a href="#pipeline" class="hero-link">Run a pipeline <b>↗</b></a></div>
+      <div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="core"><span>✦</span><small>AI CORE</small></div><div class="node node-a">CI</div><div class="node node-b">ML</div><div class="node node-c">CD</div><div class="art-caption">CONTINUOUS<br><b>INTELLIGENCE</b></div></div>
+    </section>
+    <section class="stats">
+      <div class="stat-card"><div class="stat-top"><span>Total releases</span><span class="stat-icon">↗</span></div><strong id="total">{{ stats.total }}</strong><small>Pipeline executions</small></div>
+      <div class="stat-card"><div class="stat-top"><span>Successful</span><span class="stat-icon green">✓</span></div><strong id="deployed">{{ stats.deployed }}</strong><small>Stable deployments</small></div>
+      <div class="stat-card"><div class="stat-top"><span>Blocked</span><span class="stat-icon red">!</span></div><strong id="blocked">{{ stats.failed }}</strong><small>Risk / test gate triggered</small></div>
+      <div class="stat-card"><div class="stat-top"><span>Avg. risk score</span><span class="stat-icon purple">✦</span></div><strong><span id="avgRisk">{{ stats.avg_risk }}</span><small class="unit">%</small></strong><small>Across recent runs</small></div>
+    </section>
+    <section class="content-grid">
+      <div class="panel runner" id="pipeline">
+        <div class="panel-heading"><div><div class="eyebrow">AUTOMATION</div><h3>Pipeline simulator</h3></div><span class="status-pill"><i></i> READY</span></div>
+        <p class="panel-desc">Adjust release signals to see how the AI risk engine responds.</p>
+        <form id="pipelineForm">
+          <div class="form-grid">
+            <label>Changed files <output id="changedVal">8</output><input type="range" name="changed_files" min="1" max="50" value="8" data-output="changedVal"></label>
+            <label>Test failures <output id="testVal">0</output><input type="range" name="test_failures" min="0" max="5" value="0" data-output="testVal"></label>
+            <label>Previous failures <output id="previousVal">0</output><input type="range" name="previous_failures" min="0" max="6" value="0" data-output="previousVal"></label>
+            <label>Build duration <output id="durationVal">75 sec</output><input type="range" name="build_duration" min="20" max="300" value="75" data-output="durationVal" data-suffix=" sec"></label>
+            <label>CPU usage <output id="cpuVal">45%</output><input type="range" name="cpu_usage" min="10" max="100" value="45" data-output="cpuVal" data-suffix="%"></label>
+            <label>Test coverage <output id="coverageVal">85%</output><input type="range" name="coverage" min="30" max="100" value="85" data-output="coverageVal" data-suffix="%"></label>
+          </div>
+          <label class="toggle-row"><span><b>Simulate post-deployment health failure</b><small>Demonstrate automatic rollback after a release</small></span><input type="checkbox" id="healthFail" value="yes"><i class="toggle"></i></label>
+          <button class="run-btn" id="runBtn" type="submit"><span>✦</span> Analyze & run pipeline <b>→</b></button>
+        </form>
+      </div>
+      <div class="panel intelligence">
+        <div class="panel-heading"><div><div class="eyebrow">MACHINE LEARNING</div><h3>Risk intelligence</h3></div><span class="ai-tag">✦ AI MODEL</span></div>
+        <div class="risk-display"><div class="risk-ring" id="riskRing"><div><strong id="riskNumber">--</strong><small>RISK SCORE</small></div></div><div class="risk-copy"><span class="muted">LATEST PREDICTION</span><h2 id="riskLevel">Awaiting run</h2><p id="riskSummary">Run the pipeline to generate an explainable risk assessment.</p></div></div>
+        <div class="reason-title">SIGNALS & RECOMMENDATIONS</div><ul class="reasons" id="reasons"><li class="empty-reason">No analysis yet. Your first run will appear here.</li></ul>
+        <div class="active-release"><span>ACTIVE RELEASE</span><b id="activeVersion">{{ stats.active }}</b></div>
+      </div>
+    </section>
+    <section class="panel history" id="history">
+      <div class="panel-heading"><div><div class="eyebrow">OBSERVABILITY</div><h3>Recent release activity</h3></div><button class="reset-btn" id="resetBtn">↻ Reset demo data</button></div>
+      <div class="table-wrap"><table><thead><tr><th>RELEASE</th><th>TIME</th><th>RISK</th><th>RESULT</th><th>DETAIL</th></tr></thead><tbody id="historyBody">
+      {% for run in runs %}<tr><td><b>{{ run.version }}</b></td><td>{{ run.created_at }}</td><td>{{ run.risk_score }}%</td><td><span class="result {{ run.status|lower|replace(' ', '-') }}">{{ run.status }}</span></td><td>{{ run.reasons[0] }}</td></tr>{% else %}<tr class="empty-row"><td colspan="5">No releases yet. Run your first pipeline above.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+    <footer>RELEASEPILOT <span>•</span> AI-DRIVEN CI/CD DEMONSTRATOR <span class="footer-right">BUILT FOR RELIABLE RELEASES</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body></html>
