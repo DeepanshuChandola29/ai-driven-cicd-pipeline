@@ -1,19 +1,29 @@
 
-# Risky database configuration - DEMO ONLY
+# DEMO ONLY: Intentionally risky database configuration
 
-DATABASE_HOST = "localhost"
-DATABASE_PORT = 5432
+# Critical database settings
+DATABASE_HOST = "0.0.0.0"
+DATABASE_PORT = 3306
+DATABASE_NAME = "production_db"
 
-# Hardcoded credentials (intentionally insecure)
-DATABASE_USER = "admin"
-DATABASE_PASSWORD = "admin123"
-
-# Risky configuration
+# Security risks
 DEBUG = True
 SSL_ENABLED = False
-CONNECTION_POOL_SIZE = 1000
+ENCRYPTION_ENABLED = False
+AUTHENTICATION_REQUIRED = False
 
-def connect_database():
-    print("Connecting to database...")
-    print("SSL verification disabled!")
-    return True
+# Performance risks
+CONNECTION_POOL_SIZE = 1000
+QUERY_TIMEOUT = 0
+MAX_RETRIES = 100
+
+# Backup and recovery risks
+AUTO_BACKUP_ENABLED = False
+ROLLBACK_ENABLED = False
+
+# Logging risks
+LOG_LEVEL = "DEBUG"
+LOG_SENSITIVE_DATA = True
+
+# Release status
+ENVIRONMENT = "PRODUCTION"
